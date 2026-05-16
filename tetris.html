@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TETRIS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #FFF0F8;
+    background-image:
+      radial-gradient(circle, #FFD6EE 1px, transparent 1px),
+      radial-gradient(circle, #D6EEFF 1px, transparent 1px);
+    background-size: 30px 30px, 30px 30px;
+    background-position: 0 0, 15px 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', 'Meiryo', Arial, sans-serif;
+    color: #333;
+    overflow: hidden;
+  }
+
+  #wrapper {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,0.18));
+  }
+
+  #board-container {
+    position: relative;
+    border: 6px solid #3A3A3A;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 0 #1a1a1a, inset 0 2px 0 rgba(255,255,255,0.3);
+  }
+
+  canvas#board {
+    display: block;
+    background: #E8EEF8;
+  }
+
+  /* overlay screens */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 248, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+    border-radius: 6px;
+  }
+
+  .overlay h1 {
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+    font-size: 42px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, #FF6B6B, #FFD93D, #6BCB77, #4D96FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: blink 1.4s ease-in-out infinite;
+    filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.15));
+  }
+
+  .overlay p {
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    text-align: center;
+    color: #666;
+  }
+
+  .overlay .score-final {
+    font-size: 20px;
+    color: #FF6B6B;
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+  }
+
+  .overlay .hint {
+    font-size: 13px;
+    color: #aaa;
+    background: #F0F0F0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    line-height: 2;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.04); }
+  }
+
+  /* side panel */
+  #panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 140px;
+  }
+
+  .panel-box {
+    background: #fff;
+    border: 4px solid #3A3A3A;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 4px 0 #1a1a1a;
+    position: relative;
+  }
+
+  .panel-box h2 {
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .panel-box .value {
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+    font-size: 26px;
+    color: #333;
+  }
+
+  /* colored accent bar per box */
+  .panel-box:nth-child(1) { border-top: 6px solid #FF6B6B; }
+  .panel-box:nth-child(2) { border-top: 6px solid #FFD93D; }
+  .panel-box:nth-child(3) { border-top: 6px solid #6BCB77; }
+  .panel-box:nth-child(4) { border-top: 6px solid #4D96FF; }
+
+  canvas#next {
+    display: block;
+    background: #F0F4FF;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+
+  #controls {
+    font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', Arial, sans-serif;
+    font-size: 13px;
+    color: #888;
+    line-height: 2;
+    background: #fff;
+    border: 4px solid #3A3A3A;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 4px 0 #1a1a1a;
+    border-top: 6px solid #C77DFF;
+  }
+
+  #controls h2 {
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+
+  kbd {
+    display: inline-block;
+    background: #eee;
+    border: 2px solid #ccc;
+    border-bottom: 3px solid #bbb;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+  <div id="board-container">
+    <canvas id="board" width="300" height="600"></canvas>
+
+    <div class="overlay" id="start-screen">
+      <h1>TETRIS</h1>
+      <p>クリックまたは Enter でスタート！</p>
+      <div class="hint">
+        <kbd>←</kbd><kbd>→</kbd> 移動 &nbsp;
+        <kbd>↑</kbd> 回転<br>
+        <kbd>↓</kbd> ソフトドロップ<br>
+        <kbd>Space</kbd> ハードドロップ<br>
+        <kbd>P</kbd> ポーズ
+      </div>
+    </div>
+
+    <div class="overlay" id="pause-screen" style="display:none;">
+      <h1>PAUSE</h1>
+      <p><kbd>P</kbd> で再開</p>
+    </div>
+
+    <div class="overlay" id="gameover-screen" style="display:none;">
+      <h1>GAME OVER</h1>
+      <p class="score-final" id="final-score"></p>
+      <p>Enter でもう一度！</p>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="panel-box">
+      <h2>SCORE</h2>
+      <div class="value" id="score-display">0</div>
+    </div>
+    <div class="panel-box">
+      <h2>LINES</h2>
+      <div class="value" id="lines-display">0</div>
+    </div>
+    <div class="panel-box">
+      <h2>LEVEL</h2>
+      <div class="value" id="level-display">1</div>
+    </div>
+    <div class="panel-box">
+      <h2>NEXT</h2>
+      <canvas id="next" width="120" height="80"></canvas>
+    </div>
+    <div id="controls">
+      <h2>CONTROLS</h2>
+      ← → MOVE<br>
+      ↑  ROTATE<br>
+      ↓  SOFT DROP<br>
+      SPC HARD DROP<br>
+      P   PAUSE
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Audio Engine (Web Audio API analog synth) ──────────────────────────
+const sfx = (() => {
+  let ac = null;
+  let masterGain = null;
+
+  function init() {
+    if (ac) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ac.createGain();
+    masterGain.gain.value = 0.5;
+    masterGain.connect(ac.destination);
+  }
+
+  // Mild waveshaper for analog warmth/saturation
+  function makeDistortion(amount) {
+    const ws = ac.createWaveShaper();
+    const n = 256, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+    }
+    ws.curve = curve;
+    return ws;
+  }
+
+  // Single oscillator note with exponential decay
+  function playTone({ freq = 440, type = 'square', duration = 0.08,
+                      gainPeak = 0.4, detune = 0, distort = false } = {}) {
+    init();
+    const t = ac.currentTime;
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.detune.setValueAtTime(detune, t);
+
+    env.gain.setValueAtTime(gainPeak, t);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+    if (distort) {
+      const dist = makeDistortion(30);
+      osc.connect(dist);
+      dist.connect(env);
+    } else {
+      osc.connect(env);
+    }
+    env.connect(masterGain);
+
+    osc.start(t);
+    osc.stop(t + duration + 0.01);
+  }
+
+  // Noise burst (for impact/lock sounds)
+  function playNoise({ duration = 0.06, gainPeak = 0.3, lpFreq = 400 } = {}) {
+    init();
+    const t = ac.currentTime;
+    const bufLen = ac.sampleRate * duration;
+    const buf = ac.createBuffer(1, bufLen, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = lpFreq;
+
+    const env = ac.createGain();
+    env.gain.setValueAtTime(gainPeak, t);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+    src.connect(lp);
+    lp.connect(env);
+    env.connect(masterGain);
+    src.start(t);
+    src.stop(t + duration);
+  }
+
+  // Pitch sweep (for hard drop)
+  function playSweep({ startFreq = 800, endFreq = 60, duration = 0.12,
+                       type = 'sawtooth', gainPeak = 0.5 } = {}) {
+    init();
+    const t = ac.currentTime;
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+    const dist = makeDistortion(20);
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(startFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, t + duration);
+
+    env.gain.setValueAtTime(gainPeak, t);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+    osc.connect(dist);
+    dist.connect(env);
+    env.connect(masterGain);
+    osc.start(t);
+    osc.stop(t + duration + 0.01);
+  }
+
+  // Arpeggio (for line clear)
+  function playArp(freqs, noteLen = 0.07, type = 'square') {
+    init();
+    freqs.forEach((freq, i) => {
+      const t = ac.currentTime + i * noteLen;
+      const osc = ac.createOscillator();
+      const env = ac.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      osc.detune.setValueAtTime((Math.random() - 0.5) * 8, t); // slight analog drift
+      env.gain.setValueAtTime(0.35, t);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + noteLen * 1.2);
+      osc.connect(env);
+      env.connect(masterGain);
+      osc.start(t);
+      osc.stop(t + noteLen * 1.5);
+    });
+  }
+
+  return {
+    // Short click for left/right move
+    move() {
+      playTone({ freq: 180, type: 'square', duration: 0.025, gainPeak: 0.18, detune: 5 });
+    },
+
+    // Higher click for rotation
+    rotate() {
+      playTone({ freq: 320, type: 'square', duration: 0.04, gainPeak: 0.22, detune: -8 });
+    },
+
+    // Soft thud when piece locks
+    lock() {
+      playNoise({ duration: 0.07, gainPeak: 0.25, lpFreq: 350 });
+      playTone({ freq: 90, type: 'sine', duration: 0.1, gainPeak: 0.3 });
+    },
+
+    // Downward sweep for hard drop
+    hardDrop() {
+      playSweep({ startFreq: 900, endFreq: 55, duration: 0.11, gainPeak: 0.45 });
+      playNoise({ duration: 0.05, gainPeak: 0.2, lpFreq: 250 });
+    },
+
+    // Ascending arpeggio — more notes for more lines
+    lineClear(count) {
+      const arps = {
+        1: [330, 440, 550],
+        2: [330, 440, 550, 660],
+        3: [330, 440, 550, 660, 880],
+        4: [330, 495, 660, 880, 1100, 1320], // tetris!
+      };
+      playArp(arps[count] || arps[1], count === 4 ? 0.08 : 0.065, 'square');
+    },
+
+    // Descending melody for game over
+    gameOver() {
+      [440, 370, 330, 220, 185, 147].forEach((freq, i) => {
+        const t = ac.currentTime + i * 0.13;
+        const osc = ac.createOscillator();
+        const env = ac.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        env.gain.setValueAtTime(0.3, t);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.connect(env);
+        env.connect(masterGain);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      });
+    },
+
+    // Level up fanfare
+    levelUp() {
+      playArp([523, 659, 784, 1047], 0.09, 'square');
+    },
+  };
+})();
+// ───────────────────────────────────────────────────────────────────────
+
+const COLS = 10, ROWS = 20, BLOCK = 30;
+const board = document.getElementById('board');
+const ctx = board.getContext('2d');
+const nextCanvas = document.getElementById('next');
+const nctx = nextCanvas.getContext('2d');
+
+// LEGO-style piece colors
+const COLORS = {
+  I: '#4D96FF', // blue
+  O: '#FFD93D', // yellow
+  T: '#C77DFF', // purple
+  S: '#6BCB77', // green
+  Z: '#FF6B6B', // red
+  J: '#FF922B', // orange
+  L: '#F06595', // pink
+};
+
+// Color helpers for LEGO 3D effect
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+function lighten(hex, f=0.35) {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgb(${Math.min(255,Math.round(r+(255-r)*f))},${Math.min(255,Math.round(g+(255-g)*f))},${Math.min(255,Math.round(b+(255-b)*f))})`;
+}
+function darken(hex, f=0.35) {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgb(${Math.round(r*(1-f))},${Math.round(g*(1-f))},${Math.round(b*(1-f))})`;
+}
+
+const PIECES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]],
+};
+
+const PIECE_KEYS = Object.keys(PIECES);
+// 7-bag random
+let bag = [];
+function nextBag() {
+  bag = [...PIECE_KEYS].sort(() => Math.random() - 0.5);
+}
+function drawFromBag() {
+  if (bag.length === 0) nextBag();
+  return bag.pop();
+}
+
+// Score table
+const LINE_SCORES = [0, 100, 300, 500, 800];
+
+let grid, score, lines, level, piece, pieceX, pieceY, nextPiece;
+let gameState = 'start'; // start | playing | paused | gameover
+let dropInterval, lastDrop;
+
+function createGrid() {
+  return Array.from({length: ROWS}, () => Array(COLS).fill(null));
+}
+
+function rotate(matrix) {
+  const N = matrix.length;
+  return matrix[0].map((_, c) => matrix.map((row, r) => row[c]).reverse());
+}
+
+function spawnPiece(key) {
+  const matrix = PIECES[key].map(r => [...r]);
+  return {
+    key,
+    matrix,
+    color: COLORS[key],
+  };
+}
+
+function initGame() {
+  grid = createGrid();
+  score = 0; lines = 0; level = 1;
+  bag = [];
+  piece = spawnPiece(drawFromBag());
+  nextPiece = spawnPiece(drawFromBag());
+  pieceX = Math.floor(COLS / 2) - Math.floor(piece.matrix[0].length / 2);
+  pieceY = 0;
+  updateUI();
+  lastDrop = performance.now();
+  gameState = 'playing';
+}
+
+function dropSpeed() {
+  // ms per row: faster each level
+  return Math.max(80, 800 - (level - 1) * 70);
+}
+
+function isValid(mat, ox, oy) {
+  for (let r = 0; r < mat.length; r++) {
+    for (let c = 0; c < mat[r].length; c++) {
+      if (!mat[r][c]) continue;
+      const nr = oy + r, nc = ox + c;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) return false;
+      if (grid[nr][nc]) return false;
+    }
+  }
+  return true;
+}
+
+function lockPiece() {
+  for (let r = 0; r < piece.matrix.length; r++) {
+    for (let c = 0; c < piece.matrix[r].length; c++) {
+      if (!piece.matrix[r][c]) continue;
+      const gr = pieceY + r, gc = pieceX + c;
+      if (gr < 0) { endGame(); return; }
+      grid[gr][gc] = piece.color;
+    }
+  }
+  clearLines();
+  // next piece
+  piece = nextPiece;
+  nextPiece = spawnPiece(drawFromBag());
+  pieceX = Math.floor(COLS / 2) - Math.floor(piece.matrix[0].length / 2);
+  pieceY = 0;
+  if (!isValid(piece.matrix, pieceX, pieceY)) {
+    endGame();
+  }
+  updateUI();
+}
+
+function clearLines() {
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (grid[r].every(c => c !== null)) {
+      grid.splice(r, 1);
+      grid.unshift(Array(COLS).fill(null));
+      cleared++;
+      r++;
+    }
+  }
+  if (cleared > 0) {
+    const prevLevel = level;
+    lines += cleared;
+    score += LINE_SCORES[cleared] * level;
+    level = Math.floor(lines / 10) + 1;
+    sfx.lineClear(cleared);
+    if (level > prevLevel) sfx.levelUp();
+  } else {
+    sfx.lock();
+  }
+}
+
+function hardDrop() {
+  while (isValid(piece.matrix, pieceX, pieceY + 1)) pieceY++;
+  sfx.hardDrop();
+  lockPiece();
+}
+
+function ghostY() {
+  let gy = pieceY;
+  while (isValid(piece.matrix, pieceX, gy + 1)) gy++;
+  return gy;
+}
+
+function endGame() {
+  gameState = 'gameover';
+  sfx.gameOver();
+  document.getElementById('final-score').textContent = 'SCORE: ' + score;
+  document.getElementById('gameover-screen').style.display = 'flex';
+}
+
+function updateUI() {
+  document.getElementById('score-display').textContent = score;
+  document.getElementById('lines-display').textContent = lines;
+  document.getElementById('level-display').textContent = level;
+}
+
+// Drawing — LEGO brick style
+function drawBlock(context, x, y, color, size, alpha) {
+  context.globalAlpha = alpha ?? 1;
+  const px = x * size, py = y * size;
+  const d = Math.max(3, Math.round(size * 0.14)); // depth of 3D sides
+
+  // Right side face (dark)
+  context.fillStyle = darken(color, 0.45);
+  context.beginPath();
+  context.moveTo(px + size - d, py + d);
+  context.lineTo(px + size,     py);
+  context.lineTo(px + size,     py + size);
+  context.lineTo(px + size - d, py + size - d);
+  context.closePath();
+  context.fill();
+
+  // Bottom face (dark)
+  context.fillStyle = darken(color, 0.35);
+  context.beginPath();
+  context.moveTo(px + d,        py + size - d);
+  context.lineTo(px + size - d, py + size - d);
+  context.lineTo(px + size,     py + size);
+  context.lineTo(px,            py + size);
+  context.closePath();
+  context.fill();
+
+  // Top face (main color)
+  context.fillStyle = color;
+  context.fillRect(px, py, size - d, size - d);
+
+  // Top-left highlight strip
+  context.fillStyle = lighten(color, 0.45);
+  context.fillRect(px, py, size - d, d);
+  context.fillRect(px, py, d, size - d);
+
+  // Inner shadow at bottom-right of top face
+  context.fillStyle = darken(color, 0.15);
+  context.fillRect(px + size - d*2, py + size - d*2, d, d);
+
+  // Stud (cylinder)
+  const cx = px + (size - d) / 2;
+  const cy = py + (size - d) / 2;
+  const sr = (size - d) * 0.21;
+
+  // Stud side shadow
+  context.fillStyle = darken(color, 0.3);
+  context.beginPath();
+  context.arc(cx, cy, sr, 0, Math.PI * 2);
+  context.fill();
+
+  // Stud top face
+  context.fillStyle = lighten(color, 0.2);
+  context.beginPath();
+  context.arc(cx, cy - sr * 0.25, sr * 0.82, 0, Math.PI * 2);
+  context.fill();
+
+  // Stud highlight
+  context.fillStyle = 'rgba(255,255,255,0.55)';
+  context.beginPath();
+  context.arc(cx - sr * 0.22, cy - sr * 0.5, sr * 0.32, 0, Math.PI * 2);
+  context.fill();
+
+  context.globalAlpha = 1;
+}
+
+function drawGrid() {
+  ctx.clearRect(0, 0, board.width, board.height);
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(180,195,220,0.5)';
+  ctx.lineWidth = 1;
+  for (let r = 0; r < ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * BLOCK); ctx.lineTo(COLS * BLOCK, r * BLOCK); ctx.stroke();
+  }
+  for (let c = 0; c < COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * BLOCK, 0); ctx.lineTo(c * BLOCK, ROWS * BLOCK); ctx.stroke();
+  }
+
+  // locked blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c]) drawBlock(ctx, c, r, grid[r][c], BLOCK);
+    }
+  }
+
+  if (gameState !== 'playing') return;
+
+  // ghost piece
+  const gy = ghostY();
+  for (let r = 0; r < piece.matrix.length; r++) {
+    for (let c = 0; c < piece.matrix[r].length; c++) {
+      if (!piece.matrix[r][c]) continue;
+      drawBlock(ctx, pieceX + c, gy + r, piece.color, BLOCK, 0.22);
+    }
+  }
+
+  // active piece
+  for (let r = 0; r < piece.matrix.length; r++) {
+    for (let c = 0; c < piece.matrix[r].length; c++) {
+      if (!piece.matrix[r][c]) continue;
+      drawBlock(ctx, pieceX + c, pieceY + r, piece.color, BLOCK);
+    }
+  }
+}
+
+function drawNext() {
+  nctx.fillStyle = '#F0F4FF';
+  nctx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+  const mat = nextPiece.matrix;
+  const blockSize = 24;
+  const offX = Math.floor((nextCanvas.width / blockSize - mat[0].length) / 2);
+  const offY = Math.floor((nextCanvas.height / blockSize - mat.length) / 2);
+  for (let r = 0; r < mat.length; r++) {
+    for (let c = 0; c < mat[r].length; c++) {
+      if (!mat[r][c]) continue;
+      drawBlock(nctx, offX + c, offY + r, nextPiece.color, blockSize);
+    }
+  }
+}
+
+// Game loop
+function loop(ts) {
+  if (gameState === 'playing') {
+    if (ts - lastDrop > dropSpeed()) {
+      if (isValid(piece.matrix, pieceX, pieceY + 1)) {
+        pieceY++;
+      } else {
+        lockPiece();
+      }
+      lastDrop = ts;
+    }
+    drawGrid();
+    drawNext();
+    updateUI();
+  }
+  requestAnimationFrame(loop);
+}
+
+// Input
+document.addEventListener('keydown', e => {
+  if (gameState === 'start' || gameState === 'gameover') {
+    if (e.key === 'Enter') {
+      document.getElementById('start-screen').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+      initGame();
+    }
+    return;
+  }
+
+  if (e.key === 'p' || e.key === 'P') {
+    if (gameState === 'playing') {
+      gameState = 'paused';
+      document.getElementById('pause-screen').style.display = 'flex';
+    } else if (gameState === 'paused') {
+      gameState = 'playing';
+      document.getElementById('pause-screen').style.display = 'none';
+      lastDrop = performance.now();
+    }
+    return;
+  }
+
+  if (gameState !== 'playing') return;
+
+  switch (e.key) {
+    case 'ArrowLeft':
+      if (isValid(piece.matrix, pieceX - 1, pieceY)) { pieceX--; sfx.move(); }
+      break;
+    case 'ArrowRight':
+      if (isValid(piece.matrix, pieceX + 1, pieceY)) { pieceX++; sfx.move(); }
+      break;
+    case 'ArrowDown':
+      if (isValid(piece.matrix, pieceX, pieceY + 1)) {
+        pieceY++;
+        score += 1;
+        sfx.move();
+      }
+      break;
+    case 'ArrowUp': {
+      const rotated = rotate(piece.matrix);
+      for (const ox of [0, -1, 1, -2, 2]) {
+        if (isValid(rotated, pieceX + ox, pieceY)) {
+          piece.matrix = rotated;
+          pieceX += ox;
+          sfx.rotate();
+          break;
+        }
+      }
+      break;
+    }
+    case ' ':
+      e.preventDefault();
+      hardDrop();
+      break;
+  }
+});
+
+// Click to start
+board.addEventListener('click', () => {
+  if (gameState === 'start' || gameState === 'gameover') {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+    initGame();
+  }
+});
+
+// Start loop
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
